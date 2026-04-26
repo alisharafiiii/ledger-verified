@@ -10,14 +10,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ledgerhq/device-management-kit": "^1.2.0",
-    "@ledgerhq/device-signer-kit-ethereum": "^1.14.0",
-    "@ledgerhq/device-transport-kit-web-hid": "^1.2.0",
+    "@ledgerhq/hw-app-eth": "^6.40.0",
+    "@ledgerhq/hw-transport-webhid": "^6.30.0",
     "@upstash/redis": "^1.34.3",
     "next": "14.2.15",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "rxjs": "^7.8.1",
     "viem": "^2.21.0"
   },
   "devDependencies": {

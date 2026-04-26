@@ -1,68 +1,30 @@
-// browser-only signer: dmk + webhid transport + ethereum signer kit.
-// runs entirely in the user's browser — chrome / edge / brave / arc only
-// (no safari, no firefox, no mobile — webhid is chromium-only).
+// browser-only signer using the legacy-but-rock-solid ledger stack:
+//   @ledgerhq/hw-transport-webhid  — webhid transport
+//   @ledgerhq/hw-app-eth            — minimal ethereum apdu wrapper
 //
-// the user clicks "verify" → browser prompts for hid permission → ledger
-// shows the plain message string (eip-191 / personal_sign) → user taps
-// approve → we get a signature and post it to /api/verify on the server.
+// the newer "device-management-kit" stack has a context-module that tries
+// to fetch clear-sign metadata from ledger's crypto-asset-list service for
+// every signing request — which throws "unknown favcoin" / "unexpected
+// device exchange" errors for any custom dapp that isn't whitelisted in
+// their cal. hw-app-eth has none of that surface area: it sends raw
+// personal_sign apdus and gets back r/s/v.
 //
-// note: we use personal_sign instead of eip-712 because custom typed-data
-// schemas aren't on ledger's clear-sign whitelist and would require the
-// user to manually enable blind-signing. personal_sign just shows the
-// utf-8 message and works on any ethereum app out of the box.
+// this is the same path used by rabby, rainbow, frame, and most production
+// dapps that talk to ledger devices.
 
 "use client";
 
-import {
-  DeviceManagementKitBuilder,
-  ConsoleLogger,
-  type DeviceSessionId,
-} from "@ledgerhq/device-management-kit";
-import { webHidTransportFactory } from "@ledgerhq/device-transport-kit-web-hid";
-import { SignerEthBuilder } from "@ledgerhq/device-signer-kit-ethereum";
-import { firstValueFrom, lastValueFrom, filter, take, tap } from "rxjs";
+import TransportWebHID from "@ledgerhq/hw-transport-webhid";
+import Eth from "@ledgerhq/hw-app-eth";
+import { bytesToHex, toBytes } from "viem";
 
 import type { LvMessage } from "./eip712";
-
-let _dmk: ReturnType<typeof buildDmk> | null = null;
-function buildDmk() {
-  return new DeviceManagementKitBuilder()
-    .addTransport(webHidTransportFactory)
-    .addLogger(new ConsoleLogger())
-    .build();
-}
-function dmk() {
-  if (!_dmk) _dmk = buildDmk();
-  return _dmk;
-}
 
 const DEFAULT_PATH =
   process.env.NEXT_PUBLIC_LEDGER_DERIVATION_PATH || "44'/60'/0'/0/0";
 
 export function isWebHidSupported(): boolean {
   return typeof navigator !== "undefined" && "hid" in navigator;
-}
-
-async function openSession(): Promise<DeviceSessionId> {
-  const sdk = dmk();
-  // webhid requires a user gesture — startDiscovering triggers the
-  // browser permission prompt for the user to pick their device.
-  const discovered = await firstValueFrom(
-    sdk.startDiscovering({}).pipe(take(1))
-  );
-  await sdk.stopDiscovering();
-  // connect() resolves once the session is ready to receive commands —
-  // no further state polling needed.
-  const sessionId = await sdk.connect({ device: discovered });
-  return sessionId;
-}
-
-async function closeSession(sessionId: DeviceSessionId) {
-  try {
-    await dmk().disconnect({ sessionId });
-  } catch {
-    /* noop */
-  }
 }
 
 export type SignResult = {
@@ -77,54 +39,38 @@ export async function signLvMessageInBrowser(
       "webhid not available — use chrome, edge, brave, or arc on desktop."
     );
   }
-  const sessionId = await openSession();
+
+  // first call triggers the browser's hid permission prompt; subsequent
+  // calls reuse the granted device automatically.
+  const transport = await TransportWebHID.create();
+
   try {
-    // no originToken — that field is for ledger's clear-sign metadata
-    // service. setting it to a string not registered in their crypto asset
-    // list (cal) makes the eth app throw "unknown favcoin error" when it
-    // tries to look up matching context. omitting it keeps the signer
-    // fully agnostic and lets personal_sign just show the raw message.
-    const signer = new SignerEthBuilder({
-      dmk: dmk(),
-      sessionId,
-    }).build();
+    const eth = new Eth(transport);
 
-    // eip-191 / personal_sign — device shows the utf-8 statement directly.
-    // no clear-sign filter required, no blind-signing toggle needed.
-    const signTask = signer.signMessage(DEFAULT_PATH, msg.statement);
+    // hw-app-eth's signPersonalMessage takes the message as a hex string of
+    // its utf-8 bytes (no 0x prefix). it handles the eip-191 prefix
+    // (\x19Ethereum Signed Message:\n{len}) for us internally.
+    const messageHex = bytesToHex(toBytes(msg.statement)).slice(2);
 
-    // wait for the action to settle (success OR failure) and inspect the
-    // final state. lastValueFrom (vs firstValueFrom + filter) avoids the
-    // "no elements in sequence" error when the device rejects or errors —
-    // the observable completes without ever emitting a signature event.
-    const finalState: any = await lastValueFrom(
-      signTask.observable.pipe(
-        tap((e) => console.debug("[ledger sign event]", e))
-      )
-    );
+    const sig = await eth.signPersonalMessage(DEFAULT_PATH, messageHex);
 
-    const output = finalState?.output;
-    const error = finalState?.error;
-    const status = finalState?.status;
+    // sig has shape { r: hex (no 0x), s: hex (no 0x), v: number }
+    let v = sig.v.toString(16);
+    if (v.length < 2) v = "0" + v;
 
-    if (!output?.r || !output?.s) {
-      // surface the most useful info we have
-      const detail =
-        error?.message ||
-        error?._tag ||
-        (status ? `status=${status}` : null) ||
-        "device returned no signature (was the request rejected on device?)";
-      throw new Error(detail);
-    }
+    const signature = ("0x" +
+      sig.r.padStart(64, "0") +
+      sig.s.padStart(64, "0") +
+      v) as `0x${string}`;
 
-    const { r, s, v } = output as { r: string; s: string; v: number };
-    const sig = ("0x" +
-      r.replace(/^0x/, "").padStart(64, "0") +
-      s.replace(/^0x/, "").padStart(64, "0") +
-      v.toString(16).padStart(2, "0")) as `0x${string}`;
-
-    return { signature: sig };
+    return { signature };
+  } catch (e: any) {
+    // surface a useful message to the ui
+    const detail =
+      e?.message || e?.statusText || e?.name || "device sign failed";
+    console.error("[ledger sign error]", e);
+    throw new Error(detail);
   } finally {
-    await closeSession(sessionId);
+    await transport.close().catch(() => {});
   }
 }
