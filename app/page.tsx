@@ -103,20 +103,20 @@ export default function Home() {
               🔌 device direct
             </button>
             <button
-              onClick={() => setTransport("ledger-live")}
+              onClick={() => setTransport("ledger-wallet")}
               className={`rounded-lg px-3 py-2 transition ${
-                transport === "ledger-live"
+                transport === "ledger-wallet"
                   ? "bg-neon/15 text-neon"
                   : "text-white/50 hover:text-white/80"
               }`}
             >
-              📱 ledger live
+              📱 ledger wallet
             </button>
           </div>
           <p className="mt-2 text-[11px] text-white/40">
             {transport === "webhid"
               ? "plug your ledger in via usb. chrome / edge / brave / arc on desktop."
-              : "scan a qr code with ledger live mobile to sign — works on any browser, any device."}
+              : "scan a qr code with ledger wallet mobile to sign — works on any browser, any device."}
           </p>
 
           <div className="mt-6 rounded-2xl border border-line bg-panel/60 p-5 shadow-neon backdrop-blur">
@@ -144,12 +144,12 @@ export default function Home() {
             {step === "idle" &&
               (transport === "webhid"
                 ? "secure with ledger device"
-                : "secure with ledger live")}
+                : "secure with ledger wallet")}
             {step === "nonce" && "preparing message…"}
             {step === "sign" &&
               (transport === "webhid"
                 ? "tap approve on your ledger…"
-                : "open ledger live + approve…")}
+                : "open ledger wallet + approve…")}
             {step === "verify" && "recovering signer…"}
             {step === "done" && "secured 🔐"}
             {step === "error" && "try again"}

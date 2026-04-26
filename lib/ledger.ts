@@ -27,7 +27,7 @@ export type SignResult = {
   signature: `0x${string}`; // r||s||v hex, 132 chars
 };
 
-export type Transport = "webhid" | "ledger-live";
+export type Transport = "webhid" | "ledger-wallet";
 
 export function isWebHidSupported(): boolean {
   return typeof navigator !== "undefined" && "hid" in navigator;
@@ -42,7 +42,7 @@ export function isMobile(): boolean {
 
 export function pickTransport(): Transport {
   if (!isMobile() && isWebHidSupported()) return "webhid";
-  return "ledger-live";
+  return "ledger-wallet";
 }
 
 export async function signLvMessageInBrowser(
@@ -140,7 +140,7 @@ async function signViaWalletConnect(msg: LvMessage): Promise<SignResult> {
       method: "eth_requestAccounts",
     });
     const account = accounts?.[0];
-    if (!account) throw new Error("no account returned from ledger live");
+    if (!account) throw new Error("no account returned from ledger wallet");
 
     const messageHex = bytesToHex(toBytes(msg.statement));
     const signature: string = await provider.request({
@@ -152,7 +152,7 @@ async function signViaWalletConnect(msg: LvMessage): Promise<SignResult> {
   } catch (e: any) {
     console.error("[walletconnect sign error]", e);
     throw new Error(
-      e?.message || e?.shortMessage || "ledger live sign failed"
+      e?.message || e?.shortMessage || "ledger wallet sign failed"
     );
   }
 }

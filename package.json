@@ -12,6 +12,7 @@
   "dependencies": {
     "@ledgerhq/hw-app-eth": "^6.40.0",
     "@ledgerhq/hw-transport-webhid": "^6.30.0",
+    "@resvg/resvg-js": "^2.6.2",
     "@walletconnect/ethereum-provider": "^2.17.0",
     "@walletconnect/modal": "^2.7.0",
     "@upstash/redis": "^1.34.3",
