@@ -213,13 +213,8 @@ export default function Home() {
           <GetLedgerCta accent={accent} />
 
 
-          {stats && (stats.visits > 0 || stats.secured > 0) && (
-            <footer className="mt-16 flex items-center justify-center gap-4 text-[11px] text-white/40">
-              <span>
-                <span style={{ color: accent }}>{stats.secured.toLocaleString()}</span>{" "}
-                handles secured
-              </span>
-              <span className="text-white/20">·</span>
+          {stats && stats.visits > 0 && (
+            <footer className="mt-16 flex items-center justify-center text-[11px] text-white/40">
               <span>
                 <span style={{ color: accent }}>{stats.visits.toLocaleString()}</span>{" "}
                 visits
