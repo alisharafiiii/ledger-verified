@@ -51,17 +51,9 @@ async function openSession(): Promise<DeviceSessionId> {
     sdk.startDiscovering({}).pipe(take(1))
   );
   await sdk.stopDiscovering();
+  // connect() resolves once the session is ready to receive commands —
+  // no further state polling needed.
   const sessionId = await sdk.connect({ device: discovered });
-  await firstValueFrom(
-    sdk
-      .getDeviceSessionState({ sessionId })
-      .pipe(
-        filter(
-          (s) => s.deviceStatus === "CONNECTED" || s.deviceStatus === "READY"
-        ),
-        take(1)
-      )
-  );
   return sessionId;
 }
 

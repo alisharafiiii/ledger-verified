@@ -85,7 +85,6 @@ export default function BadgeDownloads({ handle }: { handle: string }) {
     setCopyState("working");
     try {
       const blob = await svgToPngBlob();
-      // @ts-expect-error — ClipboardItem with image/png is a modern browser feature
       await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
       setCopyState("done");
       setTimeout(() => setCopyState("idle"), 1800);
