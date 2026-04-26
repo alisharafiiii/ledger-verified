@@ -113,21 +113,6 @@ export default function Home() {
             {platform === "x" ? "twitter" : "linkedin"} doesn't decide who's real. your device does.
           </p>
 
-          {/* live stats */}
-          {stats && (stats.visits > 0 || stats.secured > 0) && (
-            <div className="mt-6 flex items-center gap-4 text-[11px] text-white/50">
-              <span>
-                <span style={{ color: accent }}>{stats.secured.toLocaleString()}</span>{" "}
-                handles secured
-              </span>
-              <span className="text-white/20">·</span>
-              <span>
-                <span style={{ color: accent }}>{stats.visits.toLocaleString()}</span>{" "}
-                visits
-              </span>
-            </div>
-          )}
-
           {/* platform picker */}
           <div className="mt-8 grid grid-cols-2 gap-2 rounded-xl border border-line bg-panel/40 p-1 text-xs">
             <PlatformBtn
@@ -136,7 +121,7 @@ export default function Home() {
               accent={THEME.x.accent}
               accentSoft={THEME.x.accentSoft}
               icon={<XLogo />}
-              label="x"
+              label="twitter"
             />
             <PlatformBtn
               active={platform === "linkedin"}
@@ -224,9 +209,19 @@ export default function Home() {
             </div>
           )}
 
-          <footer className="mt-16 text-[11px] text-white/30">
-            no api · no oauth · no backend signer · device → browser → lock.
-          </footer>
+          {stats && (stats.visits > 0 || stats.secured > 0) && (
+            <footer className="mt-16 flex items-center justify-center gap-4 text-[11px] text-white/40">
+              <span>
+                <span style={{ color: accent }}>{stats.secured.toLocaleString()}</span>{" "}
+                handles secured
+              </span>
+              <span className="text-white/20">·</span>
+              <span>
+                <span style={{ color: accent }}>{stats.visits.toLocaleString()}</span>{" "}
+                visits
+              </span>
+            </footer>
+          )}
         </div>
       </main>
 
