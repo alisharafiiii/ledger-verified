@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import BadgeDownloads from "@/components/BadgeDownloads";
+import type { Transport } from "@/lib/ledger";
 
 type Step = "idle" | "nonce" | "sign" | "verify" | "done" | "error";
 
@@ -10,10 +11,16 @@ export default function Home() {
   const [step, setStep] = useState<Step>("idle");
   const [error, setError] = useState<string | null>(null);
   const [badge, setBadge] = useState<{ handle: string; url: string } | null>(null);
-  const [hidOk, setHidOk] = useState<boolean | null>(null);
+  const [transport, setTransport] = useState<Transport>("webhid");
+  const [defaultTransport, setDefaultTransport] = useState<Transport>("webhid");
 
   useEffect(() => {
-    setHidOk(typeof navigator !== "undefined" && "hid" in navigator);
+    // pick the best transport for this device on mount
+    import("@/lib/ledger").then(({ pickTransport }) => {
+      const t = pickTransport();
+      setDefaultTransport(t);
+      setTransport(t);
+    });
   }, []);
 
   // lock the body scroll while the reveal overlay is up
@@ -42,10 +49,10 @@ export default function Home() {
       if (!nonceRes.ok) throw new Error(nonceJson.error || "nonce failed");
       const message = nonceJson.message;
 
-      // 2) sign in the browser via webhid (user taps approve on device)
+      // 2) sign in the browser — webhid on desktop chromium, ledger live elsewhere
       setStep("sign");
       const { signLvMessageInBrowser } = await import("@/lib/ledger");
-      const { signature } = await signLvMessageInBrowser(message);
+      const { signature } = await signLvMessageInBrowser(message, transport);
 
       // 3) backend recovers signer + stores
       setStep("verify");
@@ -81,13 +88,38 @@ export default function Home() {
             one handle. one device tap. one badge. nothing public except a lock.
           </p>
 
-          {hidOk === false && (
-            <div className="mt-6 rounded-lg border border-neonOrange/40 bg-neonOrange/5 p-3 text-xs text-neonOrange">
-              this browser doesn't support webhid. open in chrome, edge, brave, or arc on desktop.
-            </div>
-          )}
+          {/* transport picker — webhid on desktop chromium, ledger live elsewhere */}
+          <div className="mt-8 grid grid-cols-2 gap-2 rounded-xl border border-line bg-panel/40 p-1 text-xs">
+            <button
+              onClick={() => setTransport("webhid")}
+              disabled={defaultTransport !== "webhid"}
+              className={`rounded-lg px-3 py-2 transition ${
+                transport === "webhid"
+                  ? "bg-neon/15 text-neon"
+                  : "text-white/50 hover:text-white/80"
+              } disabled:cursor-not-allowed disabled:opacity-40`}
+              title={defaultTransport !== "webhid" ? "webhid not supported on this browser/device" : ""}
+            >
+              🔌 device direct
+            </button>
+            <button
+              onClick={() => setTransport("ledger-live")}
+              className={`rounded-lg px-3 py-2 transition ${
+                transport === "ledger-live"
+                  ? "bg-neon/15 text-neon"
+                  : "text-white/50 hover:text-white/80"
+              }`}
+            >
+              📱 ledger live
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] text-white/40">
+            {transport === "webhid"
+              ? "plug your ledger in via usb. chrome / edge / brave / arc on desktop."
+              : "scan a qr code with ledger live mobile to sign — works on any browser, any device."}
+          </p>
 
-          <div className="mt-10 rounded-2xl border border-line bg-panel/60 p-5 shadow-neon backdrop-blur">
+          <div className="mt-6 rounded-2xl border border-line bg-panel/60 p-5 shadow-neon backdrop-blur">
             <label className="block text-xs text-white/50">x handle</label>
             <div className="mt-2 flex items-center gap-3">
               <span className="text-white/40">@</span>
@@ -106,12 +138,18 @@ export default function Home() {
 
           <button
             onClick={run}
-            disabled={busy || handle.trim().length === 0 || hidOk === false}
+            disabled={busy || handle.trim().length === 0}
             className="mt-5 w-full rounded-xl border border-neon/50 bg-neon/10 px-6 py-4 text-sm tracking-widest text-neon transition hover:bg-neon/20 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {step === "idle" && "verify with ledger"}
+            {step === "idle" &&
+              (transport === "webhid"
+                ? "secure with ledger device"
+                : "secure with ledger live")}
             {step === "nonce" && "preparing message…"}
-            {step === "sign" && "tap approve on your ledger…"}
+            {step === "sign" &&
+              (transport === "webhid"
+                ? "tap approve on your ledger…"
+                : "open ledger live + approve…")}
             {step === "verify" && "recovering signer…"}
             {step === "done" && "secured 🔐"}
             {step === "error" && "try again"}
