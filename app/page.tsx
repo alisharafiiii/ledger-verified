@@ -164,12 +164,6 @@ export default function Home() {
               label="📱 ledger wallet"
             />
           </div>
-          <p className="mt-2 text-[11px] text-white/40">
-            {transport === "webhid"
-              ? "plug your ledger in via usb. chrome / edge / brave / arc on desktop."
-              : "scan a qr code with ledger wallet mobile to sign — works on any browser, any device."}
-          </p>
-
           {/* handle input */}
           <div
             className="mt-6 rounded-2xl border border-line bg-panel/60 p-5 backdrop-blur transition-shadow"
