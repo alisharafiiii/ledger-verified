@@ -240,7 +240,7 @@ export default function Home() {
 // youtube has plenty). swap LEDGER_BUY_URL with your affiliate link if you
 // have one (https://shop.ledger.com/?r=YOUR_REF) — earns a small kickback.
 
-const LEDGER_VIDEO_EMBED = "https://www.youtube.com/embed/Hmik9pTKGV0?rel=0";
+const LEDGER_VIDEO_EMBED = "https://www.youtube.com/embed/kSDCo8PJWAc?rel=0&loop=1&playlist=kSDCo8PJWAc";
 const LEDGER_BUY_URL = "https://www.ledger.com/";
 
 function GetLedgerCta({ accent }: { accent: string }) {
@@ -285,7 +285,9 @@ function HowToModal({
           your handle, sealed to a hardware key 🔐
         </h3>
 
-        <div className="aspect-video w-full overflow-hidden rounded-2xl border border-line bg-black">
+        {/* vertical youtube short — constrain width so the 9:16 player
+            doesn't dominate. centered. */}
+        <div className="mx-auto w-full max-w-[320px] aspect-[9/16] overflow-hidden rounded-2xl border border-line bg-black">
           <iframe
             src={LEDGER_VIDEO_EMBED}
             title="how a ledger device works"
