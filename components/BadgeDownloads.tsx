@@ -1,23 +1,31 @@
 "use client";
 
 import { useState } from "react";
+import type { Platform } from "@/lib/handle";
 
 type Status = "idle" | "working" | "done" | "error";
 
-// three actions for the verified badge:
+// three actions for the secured badge:
 //   - download as png (server-rendered, real png bytes — works everywhere)
 //   - download as svg (vector, sharp at any size)
 //   - copy as png to the clipboard (paste straight into a tweet/discord)
 //
-// png + copy fetch from /api/badge/[handle]/png which uses @resvg/resvg-js
-// server-side, so no browser canvas/cors quirks.
-export default function BadgeDownloads({ handle }: { handle: string }) {
+// png + copy fetch from /api/badge/[platform]/[handle]/png which uses
+// @resvg/resvg-js server-side, so no browser canvas/cors quirks.
+export default function BadgeDownloads({
+  platform,
+  handle,
+}: {
+  platform: Platform;
+  handle: string;
+}) {
   const [pngState, setPngState] = useState<Status>("idle");
   const [svgState, setSvgState] = useState<Status>("idle");
   const [copyState, setCopyState] = useState<Status>("idle");
 
-  const svgUrl = `/api/badge/${handle}`;
-  const pngUrl = `/api/badge/${handle}/png`;
+  const svgUrl = `/api/badge/${platform}/${handle}`;
+  const pngUrl = `/api/badge/${platform}/${handle}/png`;
+  const fileSlug = `${platform}-${handle}`;
 
   async function fetchBlob(url: string, expect: string): Promise<Blob> {
     const res = await fetch(url, { cache: "no-store" });
@@ -45,7 +53,7 @@ export default function BadgeDownloads({ handle }: { handle: string }) {
     setPngState("working");
     try {
       const blob = await fetchBlob(pngUrl, "image/png");
-      downloadBlob(blob, `ledger-secured-${handle}.png`);
+      downloadBlob(blob, `ledger-secured-${fileSlug}.png`);
       setPngState("done");
     } catch (e: any) {
       console.error("[png download error]", e);
@@ -56,7 +64,7 @@ export default function BadgeDownloads({ handle }: { handle: string }) {
         );
         downloadBlob(
           new Blob([text], { type: "image/svg+xml" }),
-          `ledger-secured-${handle}.svg`
+          `ledger-secured-${fileSlug}.svg`
         );
         setPngState("done");
       } catch (e2: any) {
@@ -75,7 +83,7 @@ export default function BadgeDownloads({ handle }: { handle: string }) {
       );
       downloadBlob(
         new Blob([text], { type: "image/svg+xml" }),
-        `ledger-secured-${handle}.svg`
+        `ledger-secured-${fileSlug}.svg`
       );
       setSvgState("done");
     } catch (e: any) {

@@ -2,28 +2,42 @@
 
 import { useEffect, useState } from "react";
 import BadgeDownloads from "@/components/BadgeDownloads";
+import type { Platform } from "@/lib/handle";
 import type { Transport } from "@/lib/ledger";
 
 type Step = "idle" | "nonce" | "sign" | "verify" | "done" | "error";
 
+const THEME = {
+  x: { accent: "#ff7900", accentSoft: "rgba(255,121,0,0.15)" },
+  linkedin: { accent: "#0a66c2", accentSoft: "rgba(10,102,194,0.18)" },
+} as const;
+
 export default function Home() {
+  const [platform, setPlatform] = useState<Platform>("x");
   const [handle, setHandle] = useState("");
   const [step, setStep] = useState<Step>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [badge, setBadge] = useState<{ handle: string; url: string } | null>(null);
+  const [badge, setBadge] = useState<{ platform: Platform; handle: string; url: string } | null>(null);
   const [transport, setTransport] = useState<Transport>("webhid");
   const [defaultTransport, setDefaultTransport] = useState<Transport>("webhid");
+  const [stats, setStats] = useState<{ visits: number; secured: number } | null>(null);
+
+  const accent = THEME[platform].accent;
+  const accentSoft = THEME[platform].accentSoft;
 
   useEffect(() => {
-    // pick the best transport for this device on mount
     import("@/lib/ledger").then(({ pickTransport }) => {
       const t = pickTransport();
       setDefaultTransport(t);
       setTransport(t);
     });
+    // bump visits + load stats once
+    fetch("/api/stats", { method: "POST" })
+      .then((r) => r.json())
+      .then(setStats)
+      .catch(() => {});
   }, []);
 
-  // lock the body scroll while the reveal overlay is up
   useEffect(() => {
     if (badge) {
       const prev = document.body.style.overflow;
@@ -38,23 +52,20 @@ export default function Home() {
     setError(null);
     setBadge(null);
     try {
-      // 1) ask backend for a fresh nonce + message
       setStep("nonce");
       const nonceRes = await fetch("/api/nonce", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ handle }),
+        body: JSON.stringify({ handle, platform }),
       });
       const nonceJson = await nonceRes.json();
       if (!nonceRes.ok) throw new Error(nonceJson.error || "nonce failed");
       const message = nonceJson.message;
 
-      // 2) sign in the browser — webhid on desktop chromium, ledger live elsewhere
       setStep("sign");
       const { signLvMessageInBrowser } = await import("@/lib/ledger");
       const { signature } = await signLvMessageInBrowser(message, transport);
 
-      // 3) backend recovers signer + stores
       setStep("verify");
       const verifyRes = await fetch("/api/verify", {
         method: "POST",
@@ -64,8 +75,17 @@ export default function Home() {
       const verifyJson = await verifyRes.json();
       if (!verifyRes.ok) throw new Error(verifyJson.error || "verify failed");
 
-      setBadge({ handle: verifyJson.handle, url: verifyJson.badgeUrl });
+      setBadge({
+        platform: verifyJson.platform,
+        handle: verifyJson.handle,
+        url: verifyJson.badgeUrl,
+      });
       setStep("done");
+      // refresh stats so the count bumps live
+      fetch("/api/stats")
+        .then((r) => r.json())
+        .then(setStats)
+        .catch(() => {});
     } catch (e: any) {
       setError(e?.message || String(e));
       setStep("error");
@@ -78,7 +98,12 @@ export default function Home() {
     <>
       <main className="mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center px-6 py-16">
         <div className="w-full">
-          <div className="mb-2 text-xs tracking-[0.3em] text-neon">ledger · secured</div>
+          <div
+            className="mb-2 text-xs tracking-[0.3em] transition-colors"
+            style={{ color: accent }}
+          >
+            ledger · secured
+          </div>
           <h1 className="text-4xl font-semibold leading-tight md:text-5xl">
             hardware-anchored
             <br />
@@ -88,30 +113,56 @@ export default function Home() {
             one handle. one device tap. one badge. nothing public except a lock.
           </p>
 
-          {/* transport picker — webhid on desktop chromium, ledger live elsewhere */}
+          {/* live stats */}
+          {stats && (stats.visits > 0 || stats.secured > 0) && (
+            <div className="mt-6 flex items-center gap-4 text-[11px] text-white/50">
+              <span>
+                <span style={{ color: accent }}>{stats.secured.toLocaleString()}</span>{" "}
+                handles secured
+              </span>
+              <span className="text-white/20">·</span>
+              <span>
+                <span style={{ color: accent }}>{stats.visits.toLocaleString()}</span>{" "}
+                visits
+              </span>
+            </div>
+          )}
+
+          {/* platform picker */}
           <div className="mt-8 grid grid-cols-2 gap-2 rounded-xl border border-line bg-panel/40 p-1 text-xs">
-            <button
+            <PlatformBtn
+              active={platform === "x"}
+              onClick={() => setPlatform("x")}
+              accent={THEME.x.accent}
+              accentSoft={THEME.x.accentSoft}
+              label="𝕏  x"
+            />
+            <PlatformBtn
+              active={platform === "linkedin"}
+              onClick={() => setPlatform("linkedin")}
+              accent={THEME.linkedin.accent}
+              accentSoft={THEME.linkedin.accentSoft}
+              label="in  linkedin"
+            />
+          </div>
+
+          {/* transport picker */}
+          <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl border border-line bg-panel/40 p-1 text-xs">
+            <TransportBtn
+              active={transport === "webhid"}
               onClick={() => setTransport("webhid")}
               disabled={defaultTransport !== "webhid"}
-              className={`rounded-lg px-3 py-2 transition ${
-                transport === "webhid"
-                  ? "bg-neon/15 text-neon"
-                  : "text-white/50 hover:text-white/80"
-              } disabled:cursor-not-allowed disabled:opacity-40`}
-              title={defaultTransport !== "webhid" ? "webhid not supported on this browser/device" : ""}
-            >
-              🔌 device direct
-            </button>
-            <button
+              accent={accent}
+              accentSoft={accentSoft}
+              label="🔌 device direct"
+            />
+            <TransportBtn
+              active={transport === "ledger-wallet"}
               onClick={() => setTransport("ledger-wallet")}
-              className={`rounded-lg px-3 py-2 transition ${
-                transport === "ledger-wallet"
-                  ? "bg-neon/15 text-neon"
-                  : "text-white/50 hover:text-white/80"
-              }`}
-            >
-              📱 ledger wallet
-            </button>
+              accent={accent}
+              accentSoft={accentSoft}
+              label="📱 ledger wallet"
+            />
           </div>
           <p className="mt-2 text-[11px] text-white/40">
             {transport === "webhid"
@@ -119,14 +170,22 @@ export default function Home() {
               : "scan a qr code with ledger wallet mobile to sign — works on any browser, any device."}
           </p>
 
-          <div className="mt-6 rounded-2xl border border-line bg-panel/60 p-5 shadow-neon backdrop-blur">
-            <label className="block text-xs text-white/50">x handle</label>
+          {/* handle input */}
+          <div
+            className="mt-6 rounded-2xl border border-line bg-panel/60 p-5 backdrop-blur transition-shadow"
+            style={{ boxShadow: `0 0 0 1px ${accentSoft}, 0 0 32px ${accentSoft}` }}
+          >
+            <label className="block text-xs text-white/50">
+              {platform === "x" ? "x handle" : "linkedin slug"}
+            </label>
             <div className="mt-2 flex items-center gap-3">
-              <span className="text-white/40">@</span>
+              <span className="text-white/40">
+                {platform === "x" ? "@" : "in/"}
+              </span>
               <input
                 value={handle}
                 onChange={(e) => setHandle(e.target.value)}
-                placeholder="yourhandle"
+                placeholder={platform === "x" ? "yourhandle" : "your-name"}
                 autoCapitalize="off"
                 autoCorrect="off"
                 spellCheck={false}
@@ -139,7 +198,12 @@ export default function Home() {
           <button
             onClick={run}
             disabled={busy || handle.trim().length === 0}
-            className="mt-5 w-full rounded-xl border border-neon/50 bg-neon/10 px-6 py-4 text-sm tracking-widest text-neon transition hover:bg-neon/20 disabled:cursor-not-allowed disabled:opacity-40"
+            className="mt-5 w-full rounded-xl border px-6 py-4 text-sm tracking-widest transition disabled:cursor-not-allowed disabled:opacity-40"
+            style={{
+              borderColor: accent,
+              color: accent,
+              backgroundColor: accentSoft,
+            }}
           >
             {step === "idle" &&
               (transport === "webhid"
@@ -156,81 +220,128 @@ export default function Home() {
           </button>
 
           {error && (
-            <div className="mt-4 rounded-lg border border-neonOrange/40 bg-neonOrange/5 p-3 text-xs text-neonOrange preserve-case">
+            <div
+              className="mt-4 rounded-lg border p-3 text-xs preserve-case"
+              style={{ borderColor: accent, color: accent, backgroundColor: accentSoft }}
+            >
               {error}
             </div>
           )}
 
           <footer className="mt-16 text-[11px] text-white/30">
-            no x api · no oauth · no backend signer · device → browser → lock.
+            no api · no oauth · no backend signer · device → browser → lock.
           </footer>
         </div>
       </main>
 
-      {badge && <BadgeReveal badge={badge} onClose={() => setBadge(null)} />}
+      {badge && <BadgeReveal badge={badge} accent={accent} onClose={() => setBadge(null)} />}
     </>
   );
 }
 
-function BadgeReveal({
-  badge,
-  onClose,
+function PlatformBtn({
+  active, onClick, accent, accentSoft, label,
 }: {
-  badge: { handle: string; url: string };
+  active: boolean; onClick: () => void; accent: string; accentSoft: string; label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-lg px-3 py-2 transition"
+      style={
+        active
+          ? { backgroundColor: accentSoft, color: accent }
+          : { color: "rgba(255,255,255,0.5)" }
+      }
+    >
+      {label}
+    </button>
+  );
+}
+
+function TransportBtn({
+  active, onClick, disabled, accent, accentSoft, label,
+}: {
+  active: boolean; onClick: () => void; disabled?: boolean;
+  accent: string; accentSoft: string; label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="rounded-lg px-3 py-2 transition disabled:cursor-not-allowed disabled:opacity-40"
+      style={
+        active
+          ? { backgroundColor: accentSoft, color: accent }
+          : { color: "rgba(255,255,255,0.5)" }
+      }
+    >
+      {label}
+    </button>
+  );
+}
+
+function BadgeReveal({
+  badge, accent, onClose,
+}: {
+  badge: { platform: Platform; handle: string; url: string };
+  accent: string;
   onClose: () => void;
 }) {
   const [linksOpen, setLinksOpen] = useState(false);
-
   const verifyUrl = `${origin()}${badge.url}`;
-  const badgeUrl = `${origin()}/api/badge/${badge.handle}`;
+  const badgeUrl = `${origin()}/api/badge/${badge.platform}/${badge.handle}`;
   const xPost = `@${badge.handle} is ledger secured 🔐\n${verifyUrl}`;
 
   return (
     <div className="lv-overlay fixed inset-0 z-50 overflow-y-auto bg-ink/95 backdrop-blur-md">
-      {/* close button */}
       <button
         onClick={onClose}
         aria-label="close"
-        className="absolute right-5 top-5 z-10 rounded-md border border-line bg-panel/60 px-3 py-1 text-xs text-white/60 hover:border-neon/60 hover:text-neon"
+        className="absolute right-5 top-5 z-10 rounded-md border border-line bg-panel/60 px-3 py-1 text-xs text-white/60 hover:text-white"
+        style={{ borderColor: accent + "55" }}
       >
         close ✕
       </button>
 
       <div className="mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center px-5 py-12">
-        {/* eyebrow */}
-        <div className="lv-stagger-1 mb-2 text-xs tracking-[0.3em] text-neon">
-          ledger · secured
+        <div
+          className="lv-stagger-1 mb-2 text-xs tracking-[0.3em]"
+          style={{ color: accent }}
+        >
+          {badge.platform} · ledger · secured
         </div>
         <h2 className="lv-stagger-1 text-2xl text-center md:text-3xl">
           @{badge.handle} is secured 🔐
         </h2>
 
-        {/* badge — main hero */}
-        <div className="lv-card lv-scan-wrap mt-8 w-full overflow-hidden rounded-2xl border border-neon/40">
+        <div
+          className="lv-card lv-scan-wrap mt-8 w-full overflow-hidden rounded-2xl border"
+          style={{ borderColor: accent + "66" }}
+        >
           <img
-            src={`/api/badge/${badge.handle}`}
+            src={`/api/badge/${badge.platform}/${badge.handle}`}
             alt={`@${badge.handle} ledger secured badge`}
             className="block w-full"
           />
         </div>
 
-        {/* downloads */}
         <div className="lv-stagger-2 mt-5 w-full">
-          <BadgeDownloads handle={badge.handle} />
+          <BadgeDownloads platform={badge.platform} handle={badge.handle} />
         </div>
 
-        {/* collapsible share links */}
         <div className="lv-stagger-3 mt-4 w-full">
           <button
+            type="button"
             onClick={() => setLinksOpen((v) => !v)}
             aria-expanded={linksOpen}
-            className="flex w-full items-center justify-between rounded-lg border border-line bg-panel/40 px-3 py-2 text-xs text-white/60 transition hover:border-neon/40 hover:text-neon"
+            className="flex w-full items-center justify-between rounded-lg border border-line bg-panel/40 px-3 py-2 text-xs text-white/60 transition hover:text-white"
           >
             <span>share links</span>
             <span
-              className={`transition-transform ${
-                linksOpen ? "rotate-180" : "rotate-0"
-              }`}
+              className={`transition-transform ${linksOpen ? "rotate-180" : "rotate-0"}`}
               aria-hidden
             >
               ▾
@@ -246,10 +357,10 @@ function BadgeReveal({
           )}
         </div>
 
-        {/* dismiss link */}
         <button
           onClick={onClose}
-          className="lv-stagger-3 mt-10 text-xs text-white/40 hover:text-neon"
+          className="lv-stagger-3 mt-10 text-xs"
+          style={{ color: accent }}
         >
           ← back to home
         </button>
@@ -270,9 +381,7 @@ function CopyRow({ label, value }: { label: string; value: string }) {
       await navigator.clipboard.writeText(value);
       setCopied(true);
       setTimeout(() => setCopied(false), 1400);
-    } catch {
-      /* noop */
-    }
+    } catch {}
   }
   return (
     <div className="flex items-center gap-3 rounded-lg border border-line bg-ink/40 px-3 py-2">
@@ -281,8 +390,9 @@ function CopyRow({ label, value }: { label: string; value: string }) {
         <div className="truncate text-white/80 preserve-case">{value}</div>
       </div>
       <button
+        type="button"
         onClick={copy}
-        className="shrink-0 rounded-md border border-line bg-panel/40 px-3 py-1.5 text-white/70 transition hover:border-neon/60 hover:text-neon"
+        className="shrink-0 rounded-md border border-line bg-panel/40 px-3 py-1.5 text-white/70 transition hover:text-white"
       >
         {copied ? "copied ✓" : "copy"}
       </button>

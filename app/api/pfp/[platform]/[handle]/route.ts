@@ -1,20 +1,21 @@
 import { NextResponse } from "next/server";
-import { normalizeHandle } from "@/lib/handle";
+import { normalizeHandle, isPlatform } from "@/lib/handle";
+import { unavatarUrl } from "@/lib/pfp";
 
 export const runtime = "nodejs";
-export const revalidate = 3600; // cache for an hour
+export const revalidate = 3600;
 
-// fetches a user's x avatar via unavatar.io (no oauth, no api key) and proxies
-// the bytes back. lets the badge svg embed `/api/pfp/{handle}` directly,
-// avoids exposing the unavatar url, and keeps cors/cache controlled by us.
 export async function GET(
   _req: Request,
-  { params }: { params: { handle: string } }
+  { params }: { params: { platform: string; handle: string } }
 ) {
-  const handle = normalizeHandle(params.handle);
+  if (!isPlatform(params.platform)) {
+    return new NextResponse("invalid platform", { status: 400 });
+  }
+  const handle = normalizeHandle(params.handle, params.platform);
   if (!handle) return new NextResponse("invalid handle", { status: 400 });
   try {
-    const upstream = await fetch(`https://unavatar.io/twitter/${handle}`, {
+    const upstream = await fetch(unavatarUrl(params.platform, handle), {
       next: { revalidate: 3600 },
     });
     if (!upstream.ok) return new NextResponse("pfp fetch failed", { status: 502 });

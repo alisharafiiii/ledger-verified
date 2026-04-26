@@ -1,12 +1,10 @@
 import { Redis } from "@upstash/redis";
+import type { Platform } from "./handle";
 
-// lazy singleton — env may not be set during `next build`
 let _redis: Redis | null = null;
 
 export function getRedis(): Redis {
   if (_redis) return _redis;
-  // .trim() defends against stray whitespace/newlines pasted into vercel env
-  // (upstash logs warnings about these and they break some requests)
   const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
   const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
   if (!url || !token) {
@@ -19,31 +17,70 @@ export function getRedis(): Redis {
 }
 
 export type VerifiedRecord = {
+  platform: Platform;
   handle: string;        // lowercased, no leading @
   address: string;       // 0x… recovered signer
   timestamp: number;     // ms epoch when verified
   nonce: string;         // the nonce used in the signed message
 };
 
-const handleKey = (h: string) => `lv:handle:${h.toLowerCase()}`;
+const handleKey = (p: Platform, h: string) =>
+  `lv:handle:${p}:${h.toLowerCase()}`;
 const nonceKey = (n: string) => `lv:nonce:${n}`;
+const STATS_VISITS = "lv:stats:visits";
+const STATS_SECURED = "lv:stats:secured";
 
-// store a one-time nonce for ~5 minutes so /api/verify can confirm it was issued
-export async function rememberNonce(nonce: string, handle: string) {
-  await getRedis().set(nonceKey(nonce), handle.toLowerCase(), { ex: 300 });
+// store a one-time nonce for ~5 minutes; value carries handle + platform
+export async function rememberNonce(nonce: string, platform: Platform, handle: string) {
+  await getRedis().set(
+    nonceKey(nonce),
+    `${platform}:${handle.toLowerCase()}`,
+    { ex: 300 }
+  );
 }
 
-export async function consumeNonce(nonce: string): Promise<string | null> {
+export async function consumeNonce(
+  nonce: string
+): Promise<{ platform: Platform; handle: string } | null> {
   const r = getRedis();
-  const handle = (await r.get<string>(nonceKey(nonce))) ?? null;
-  if (handle) await r.del(nonceKey(nonce));
-  return handle;
+  const raw = (await r.get<string>(nonceKey(nonce))) ?? null;
+  if (!raw) return null;
+  await r.del(nonceKey(nonce));
+  const [platform, handle] = raw.split(":");
+  if ((platform !== "x" && platform !== "linkedin") || !handle) return null;
+  return { platform: platform as Platform, handle };
 }
 
 export async function saveVerified(rec: VerifiedRecord) {
-  await getRedis().set(handleKey(rec.handle), rec);
+  const r = getRedis();
+  const key = handleKey(rec.platform, rec.handle);
+  // only count first-time secures, not re-verifies
+  const existing = await r.get(key);
+  await r.set(key, rec);
+  if (!existing) {
+    await r.incr(STATS_SECURED);
+  }
 }
 
-export async function getVerified(handle: string): Promise<VerifiedRecord | null> {
-  return (await getRedis().get<VerifiedRecord>(handleKey(handle))) ?? null;
+export async function getVerified(
+  platform: Platform,
+  handle: string
+): Promise<VerifiedRecord | null> {
+  return (
+    (await getRedis().get<VerifiedRecord>(handleKey(platform, handle))) ?? null
+  );
+}
+
+// stats counters
+export async function bumpVisits(): Promise<number> {
+  return await getRedis().incr(STATS_VISITS);
+}
+
+export async function readStats(): Promise<{ visits: number; secured: number }> {
+  const r = getRedis();
+  const [visits, secured] = await Promise.all([
+    r.get<number>(STATS_VISITS),
+    r.get<number>(STATS_SECURED),
+  ]);
+  return { visits: visits ?? 0, secured: secured ?? 0 };
 }

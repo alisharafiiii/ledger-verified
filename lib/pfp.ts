@@ -1,10 +1,25 @@
-// server-side helper to fetch an x avatar via unavatar and return it as a
-// base64 data uri. used when embedding the pfp into a standalone svg badge
-// (so the downloaded svg works without any external network calls).
+// proxy + cache user profile pictures via unavatar.io.
+// no oauth, no api key. unavatar mirrors public profile images and falls
+// back to a generated placeholder when the source is unavailable.
+//
+// platform routing:
+//   x        → unavatar.io/twitter/{handle}
+//   linkedin → unavatar.io/linkedin/{handle}  (less reliable; linkedin
+//              actively blocks scrapers — we accept the fallback gracefully)
 
-export async function fetchPfpAsDataUri(handle: string): Promise<string | null> {
+import type { Platform } from "./handle";
+
+export function unavatarUrl(platform: Platform, handle: string): string {
+  if (platform === "x") return `https://unavatar.io/twitter/${handle}`;
+  return `https://unavatar.io/linkedin/${handle}`;
+}
+
+export async function fetchPfpAsDataUri(
+  platform: Platform,
+  handle: string
+): Promise<string | null> {
   try {
-    const upstream = await fetch(`https://unavatar.io/twitter/${handle}`, {
+    const upstream = await fetch(unavatarUrl(platform, handle), {
       next: { revalidate: 3600 },
     });
     if (!upstream.ok) return null;
