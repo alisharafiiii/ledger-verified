@@ -95,6 +95,10 @@ async function getWcProvider() {
   const { EthereumProvider } = await import(
     "@walletconnect/ethereum-provider"
   );
+  // ledger live wallet id in the walletconnect explorer (canonical)
+  const LEDGER_LIVE_WALLET_ID =
+    "19177a98252e07ddfc9af2083ba8e07ef627cb6103467ffebb3f8f4205fd7927";
+
   _wcProvider = await EthereumProvider.init({
     projectId: WC_PROJECT_ID,
     chains: [1], // ethereum mainnet — used only for routing, no tx is sent
@@ -106,6 +110,19 @@ async function getWcProvider() {
       url: APP_URL || "https://ledger-verified.vercel.app",
       icons: [`${APP_URL || "https://ledger-verified.vercel.app"}/api/badge/anonymous`],
     },
+    qrModalOptions: {
+      themeMode: "dark",
+      themeVariables: {
+        "--wcm-z-index": "9999",
+        "--wcm-accent-color": "#ff7900",
+        "--wcm-background-color": "#0a0c14",
+        "--wcm-accent-fill-color": "#05060a",
+      },
+      // lock the modal to ledger live only — hide every other wallet
+      enableExplorer: true,
+      explorerRecommendedWalletIds: [LEDGER_LIVE_WALLET_ID],
+      explorerExcludedWalletIds: "ALL",
+    } as any,
   });
   return _wcProvider;
 }

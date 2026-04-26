@@ -179,6 +179,8 @@ function BadgeReveal({
   badge: { handle: string; url: string };
   onClose: () => void;
 }) {
+  const [linksOpen, setLinksOpen] = useState(false);
+
   const verifyUrl = `${origin()}${badge.url}`;
   const badgeUrl = `${origin()}/api/badge/${badge.handle}`;
   const xPost = `@${badge.handle} is ledger secured 🔐\n${verifyUrl}`;
@@ -217,11 +219,31 @@ function BadgeReveal({
           <BadgeDownloads handle={badge.handle} />
         </div>
 
-        {/* copy rows */}
-        <div className="lv-stagger-3 mt-4 grid w-full gap-2 text-xs">
-          <CopyRow label="verify page" value={verifyUrl} />
-          <CopyRow label="badge image" value={badgeUrl} />
-          <CopyRow label="x post" value={xPost} />
+        {/* collapsible share links */}
+        <div className="lv-stagger-3 mt-4 w-full">
+          <button
+            onClick={() => setLinksOpen((v) => !v)}
+            aria-expanded={linksOpen}
+            className="flex w-full items-center justify-between rounded-lg border border-line bg-panel/40 px-3 py-2 text-xs text-white/60 transition hover:border-neon/40 hover:text-neon"
+          >
+            <span>share links</span>
+            <span
+              className={`transition-transform ${
+                linksOpen ? "rotate-180" : "rotate-0"
+              }`}
+              aria-hidden
+            >
+              ▾
+            </span>
+          </button>
+
+          {linksOpen && (
+            <div className="lv-overlay mt-2 grid gap-2 text-xs">
+              <CopyRow label="verify page" value={verifyUrl} />
+              <CopyRow label="badge image" value={badgeUrl} />
+              <CopyRow label="x post" value={xPost} />
+            </div>
+          )}
         </div>
 
         {/* dismiss link */}
