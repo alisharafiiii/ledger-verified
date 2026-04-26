@@ -85,12 +85,12 @@ function renderBadgeSvg(opts: {
   <text x="56" y="250" fill="${MUTED}">badge</text>
   <text x="180" y="250" fill="#ffffff">${serialEsc}</text>
 </g>
-<g transform="translate(540, 200)">
+<g transform="translate(540, 192)">
   <circle r="60" fill="none" stroke="${ORANGE}" stroke-width="0.5" opacity="0.2"/>
   <circle r="56" fill="none" stroke="${ORANGE}" stroke-width="0.5" opacity="0.35"/>
   <circle r="50" fill="${PANEL}" stroke="${ORANGE}" stroke-width="2"/>
   ${pfpInner}
-  <g transform="translate(28, 28)">
+  <g transform="translate(31, 31)">
     <circle r="16" fill="${INK}" stroke="${ORANGE}" stroke-width="1.5"/>
     <g transform="translate(-6, -6)">
       <path d="M2.5 7 v-4 c0 -2.5 7 -2.5 7 0 v4" fill="none" stroke="${ORANGE}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -100,7 +100,7 @@ function renderBadgeSvg(opts: {
     </g>
   </g>
 </g>
-<text x="540" y="282" text-anchor="middle" font-size="11" fill="${MUTED}" font-family="ui-monospace, Menlo, monospace">@${handleEsc}</text>
+<text x="540" y="274" text-anchor="middle" font-size="11" fill="${MUTED}" font-family="ui-monospace, Menlo, monospace">@${handleEsc}</text>
 <line x1="40" y1="296" x2="640" y2="296" stroke="${LINE}"/>
 <text x="56" y="324" font-size="11" fill="${MUTED}" font-family="ui-monospace, Menlo, monospace" letter-spacing="2">// no x api · no oauth · just hardware sign</text>
 </svg>`;
