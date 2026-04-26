@@ -36,7 +36,7 @@ export async function GET(
       background: "rgba(0, 0, 0, 0)",
     });
     const png = resvg.render().asPng();
-    return new NextResponse(png, {
+    return new NextResponse(new Uint8Array(png), {
       headers: {
         "content-type": "image/png",
         "content-disposition": `inline; filename="ledger-secured-${params.platform}-${handle}.png"`,
