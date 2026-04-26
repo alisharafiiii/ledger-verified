@@ -32,12 +32,14 @@ export function buildMessage(handle: string): LvMessage {
   const bytes = new Uint8Array(16);
   globalThis.crypto.getRandomValues(bytes);
   const nonce = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  // ascii-only printable chars → ledger eth app shows the message in clear
+  // text (any non-ascii char like middle-dot triggers hash-fallback display).
   const statement = [
-    "== ledger · secured ==",
+    "== LEDGER SECURED ==",
     "",
-    `@${handle}`,
-    issuedAt,
-    nonce,
+    `handle: @${handle}`,
+    `issued: ${issuedAt}`,
+    `nonce:  ${nonce}`,
     "",
     "not who twitter says i am",
     "who my device says i am",
