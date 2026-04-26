@@ -5,8 +5,10 @@ let _redis: Redis | null = null;
 
 export function getRedis(): Redis {
   if (_redis) return _redis;
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  // .trim() defends against stray whitespace/newlines pasted into vercel env
+  // (upstash logs warnings about these and they break some requests)
+  const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
   if (!url || !token) {
     throw new Error(
       "missing UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN — see .env.example"
