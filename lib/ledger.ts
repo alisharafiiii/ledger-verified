@@ -2,12 +2,11 @@
 //
 //   1. desktop chromium with webhid → @ledgerhq/hw-app-eth direct
 //      (one-tap, fastest, no extra modal)
-//   2. everything else (mobile, safari, firefox, no-webhid) → ledger
-//      connect-kit, which falls back to ledger live via walletconnect
+//   2. everything else (mobile, safari, firefox, no-webhid) →
+//      walletconnect v2 → ledger live mobile (qr scan / deeplink)
 //
-// connect-kit handles the qr-code / deep-link flow into ledger live on
-// mobile. desktop browsers without webhid get the same modal. ledger
-// hosts the modal ui, no extra config needed.
+// requires NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID — free signup at
+// https://cloud.walletconnect.com (formerly cloud.reown.com).
 
 "use client";
 
@@ -16,6 +15,13 @@ import type { LvMessage } from "./eip712";
 
 const DEFAULT_PATH =
   process.env.NEXT_PUBLIC_LEDGER_DERIVATION_PATH || "44'/60'/0'/0/0";
+
+const WC_PROJECT_ID =
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "";
+
+const APP_URL =
+  process.env.NEXT_PUBLIC_APP_URL ||
+  (typeof window !== "undefined" ? window.location.origin : "");
 
 export type SignResult = {
   signature: `0x${string}`; // r||s||v hex, 132 chars
@@ -34,7 +40,6 @@ export function isMobile(): boolean {
   );
 }
 
-// pick the transport: webhid wins on desktop chromium; otherwise ledger live
 export function pickTransport(): Transport {
   if (!isMobile() && isWebHidSupported()) return "webhid";
   return "ledger-live";
@@ -44,10 +49,8 @@ export async function signLvMessageInBrowser(
   msg: LvMessage,
   transport: Transport = pickTransport()
 ): Promise<SignResult> {
-  if (transport === "webhid") {
-    return signViaWebHid(msg);
-  }
-  return signViaConnectKit(msg);
+  if (transport === "webhid") return signViaWebHid(msg);
+  return signViaWalletConnect(msg);
 }
 
 // ─── webhid path ────────────────────────────────────────────────────────────
@@ -78,36 +81,50 @@ async function signViaWebHid(msg: LvMessage): Promise<SignResult> {
   }
 }
 
-// ─── ledger live / connect-kit path ─────────────────────────────────────────
+// ─── walletconnect v2 → ledger live ────────────────────────────────────────
 
-let _provider: any | null = null;
+let _wcProvider: any | null = null;
 
-async function getConnectKitProvider() {
-  if (_provider) return _provider;
-  const { loadConnectKit } = await import("@ledgerhq/connect-kit-loader");
-  const connectKit = await loadConnectKit();
-  // allow ethereum mainnet — chain id is used purely for transport routing
-  // (we're signing a personal_sign, not sending a tx)
-  connectKit.checkSupport({
-    providerType: "Ethereum" as any,
-    chainId: 1,
+async function getWcProvider() {
+  if (_wcProvider) return _wcProvider;
+  if (!WC_PROJECT_ID) {
+    throw new Error(
+      "missing NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID — sign up free at cloud.walletconnect.com and add it as an env var."
+    );
+  }
+  const { EthereumProvider } = await import(
+    "@walletconnect/ethereum-provider"
+  );
+  _wcProvider = await EthereumProvider.init({
+    projectId: WC_PROJECT_ID,
+    chains: [1], // ethereum mainnet — used only for routing, no tx is sent
+    showQrModal: true,
+    methods: ["personal_sign", "eth_requestAccounts"],
+    metadata: {
+      name: "ledger secured",
+      description: "hardware-anchored identity. one device tap, one badge.",
+      url: APP_URL || "https://ledger-verified.vercel.app",
+      icons: [`${APP_URL || "https://ledger-verified.vercel.app"}/api/badge/anonymous`],
+    },
   });
-  _provider = await connectKit.getProvider();
-  return _provider;
+  return _wcProvider;
 }
 
-async function signViaConnectKit(msg: LvMessage): Promise<SignResult> {
+async function signViaWalletConnect(msg: LvMessage): Promise<SignResult> {
   try {
-    const provider = await getConnectKitProvider();
+    const provider = await getWcProvider();
 
-    // request account access (opens ledger live deep-link / qr modal)
+    // open the qr modal / deeplink to ledger live mobile
+    if (!provider.session) {
+      await provider.connect();
+    }
+
     const accounts: string[] = await provider.request({
       method: "eth_requestAccounts",
     });
     const account = accounts?.[0];
     if (!account) throw new Error("no account returned from ledger live");
 
-    // personal_sign — message must be hex-encoded utf-8 bytes
     const messageHex = bytesToHex(toBytes(msg.statement));
     const signature: string = await provider.request({
       method: "personal_sign",
@@ -116,7 +133,7 @@ async function signViaConnectKit(msg: LvMessage): Promise<SignResult> {
 
     return { signature: signature as `0x${string}` };
   } catch (e: any) {
-    console.error("[ledger live sign error]", e);
+    console.error("[walletconnect sign error]", e);
     throw new Error(
       e?.message || e?.shortMessage || "ledger live sign failed"
     );

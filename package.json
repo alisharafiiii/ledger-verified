@@ -10,9 +10,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ledgerhq/connect-kit-loader": "^1.1.8",
     "@ledgerhq/hw-app-eth": "^6.40.0",
     "@ledgerhq/hw-transport-webhid": "^6.30.0",
+    "@walletconnect/ethereum-provider": "^2.17.0",
+    "@walletconnect/modal": "^2.7.0",
     "@upstash/redis": "^1.34.3",
     "next": "14.2.15",
     "react": "^18.3.1",
