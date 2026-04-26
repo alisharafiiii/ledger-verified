@@ -79,10 +79,14 @@ export async function signLvMessageInBrowser(
   }
   const sessionId = await openSession();
   try {
+    // no originToken — that field is for ledger's clear-sign metadata
+    // service. setting it to a string not registered in their crypto asset
+    // list (cal) makes the eth app throw "unknown favcoin error" when it
+    // tries to look up matching context. omitting it keeps the signer
+    // fully agnostic and lets personal_sign just show the raw message.
     const signer = new SignerEthBuilder({
       dmk: dmk(),
       sessionId,
-      originToken: "ledger-verified",
     }).build();
 
     // eip-191 / personal_sign — device shows the utf-8 statement directly.
