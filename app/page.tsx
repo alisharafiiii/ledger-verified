@@ -209,6 +209,10 @@ export default function Home() {
             </div>
           )}
 
+          {/* "don't have a ledger yet?" — opens video modal then ledger.com */}
+          <GetLedgerCta accent={accent} />
+
+
           {stats && (stats.visits > 0 || stats.secured > 0) && (
             <footer className="mt-16 flex items-center justify-center gap-4 text-[11px] text-white/40">
               <span>
@@ -227,6 +231,108 @@ export default function Home() {
 
       {badge && <BadgeReveal badge={badge} accent={accent} onClose={() => setBadge(null)} />}
     </>
+  );
+}
+
+// ── "don't have a ledger yet?" cta ──────────────────────────────────────────
+//
+// swap LEDGER_VIDEO_EMBED with your preferred demo (ledger academy on
+// youtube has plenty). swap LEDGER_BUY_URL with your affiliate link if you
+// have one (https://shop.ledger.com/?r=YOUR_REF) — earns a small kickback.
+
+const LEDGER_VIDEO_EMBED = "https://www.youtube.com/embed/Hmik9pTKGV0?rel=0";
+const LEDGER_BUY_URL = "https://www.ledger.com/";
+
+function GetLedgerCta({ accent }: { accent: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-3 w-full text-center text-xs text-white/40 transition hover:text-white/80"
+      >
+        don't have a ledger yet? →
+      </button>
+      {open && <HowToModal onClose={() => setOpen(false)} accent={accent} />}
+    </>
+  );
+}
+
+function HowToModal({
+  onClose,
+  accent,
+}: {
+  onClose: () => void;
+  accent: string;
+}) {
+  return (
+    <div className="lv-overlay fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-ink/95 p-5 backdrop-blur-md">
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="close"
+        className="absolute right-5 top-5 rounded-md border border-line bg-panel/60 px-3 py-1 text-xs text-white/60 hover:text-white"
+      >
+        close ✕
+      </button>
+
+      <div className="w-full max-w-2xl">
+        <div className="mb-2 text-center text-xs tracking-[0.3em]" style={{ color: accent }}>
+          how it works
+        </div>
+        <h3 className="mb-6 text-center text-2xl">
+          your handle, sealed to a hardware key 🔐
+        </h3>
+
+        <div className="aspect-video w-full overflow-hidden rounded-2xl border border-line bg-black">
+          <iframe
+            src={LEDGER_VIDEO_EMBED}
+            title="how a ledger device works"
+            className="h-full w-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+
+        <div className="mt-6 grid grid-cols-3 gap-3 text-xs text-white/60">
+          <div className="rounded-lg border border-line bg-panel/40 p-3 text-center">
+            <div className="text-base">🔌</div>
+            <div className="mt-1">plug in / pair</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel/40 p-3 text-center">
+            <div className="text-base">🔐</div>
+            <div className="mt-1">tap approve</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel/40 p-3 text-center">
+            <div className="text-base">✓</div>
+            <div className="mt-1">badge minted</div>
+          </div>
+        </div>
+
+        <a
+          href={LEDGER_BUY_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-6 block w-full rounded-xl border px-6 py-4 text-center text-sm tracking-widest transition hover:opacity-90"
+          style={{
+            borderColor: accent,
+            color: accent,
+            backgroundColor: accent + "22",
+          }}
+        >
+          get a ledger →
+        </a>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-3 block w-full text-center text-xs text-white/40 hover:text-white/70"
+        >
+          maybe later
+        </button>
+      </div>
+    </div>
   );
 }
 

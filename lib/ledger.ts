@@ -118,10 +118,24 @@ async function getWcProvider() {
         "--wcm-background-color": "#0a0c14",
         "--wcm-accent-fill-color": "#05060a",
       },
-      // lock the modal to ledger live only — hide every other wallet
-      enableExplorer: true,
-      explorerRecommendedWalletIds: [LEDGER_LIVE_WALLET_ID],
+      // lock the modal down to ledger live only:
+      //  - enableExplorer:false hides the "view all wallets" page
+      //  - explorerExcludedWalletIds:"ALL" hides every wallet from the registry
+      //  - explorerRecommendedWalletIds whitelists ledger live back in
+      //  - desktopWallets:[] / mobileWallets:[] kill the legacy fallback lists
+      enableExplorer: false,
       explorerExcludedWalletIds: "ALL",
+      explorerRecommendedWalletIds: [LEDGER_LIVE_WALLET_ID],
+      // newer naming used by some @walletconnect/modal builds:
+      featuredWalletIds: [LEDGER_LIVE_WALLET_ID],
+      includeWalletIds: [LEDGER_LIVE_WALLET_ID],
+      desktopWallets: [],
+      mobileWallets: [],
+      walletImages: {
+        [LEDGER_LIVE_WALLET_ID]:
+          "https://explorer-api.walletconnect.com/v3/logo/lg/19177a98-252e-07dd-fc9a-f2083ba8e07e?projectId=" +
+          (WC_PROJECT_ID || ""),
+      },
     } as any,
   });
   return _wcProvider;
