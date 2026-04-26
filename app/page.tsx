@@ -110,7 +110,7 @@ export default function Home() {
             identity <span aria-hidden>🔐</span>
           </h1>
           <p className="mt-4 max-w-md text-sm text-white/60">
-            one handle. one device tap. one badge. nothing public except a lock.
+            {platform === "x" ? "twitter" : "linkedin"} doesn't decide who's real. your device does.
           </p>
 
           {/* live stats */}
